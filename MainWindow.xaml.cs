@@ -15,6 +15,16 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
 using System.IO;
+using System.Windows.Threading;
+using System.Windows.Interop;
+
+using System;
+using System.Drawing;
+using System.Drawing.Imaging;
+using System.Runtime.InteropServices;
+using System.Windows;
+using System.Windows.Interop;
+using System.Windows.Media.Imaging;
 
 
 namespace IA_Mbot
@@ -67,6 +77,10 @@ namespace IA_Mbot
 
         private IntPtr selectedWindowHandle;
 
+        private DispatcherTimer timer;
+        private bool isTimerRunning;
+
+
 
         [StructLayout(LayoutKind.Sequential)]
         private struct RECT
@@ -83,6 +97,21 @@ namespace IA_Mbot
             InitializeComponent();
             LoadOpenWindows();
 
+            // Initialize the timer
+            timer = new DispatcherTimer();
+            timer.Interval = TimeSpan.FromMilliseconds(50); // 10 times a second
+            timer.Tick += Timer_Tick;
+
+            isTimerRunning = false;
+
+        }
+
+        private void Timer_Tick(object sender, EventArgs e)
+        {
+            // Code to execute on each tick
+            Console.WriteLine("Timer ticked at " + DateTime.Now);
+
+            UpdateScreenshot();
         }
 
         private void LoadOpenWindows()
@@ -124,82 +153,87 @@ namespace IA_Mbot
             return windows;
         }
 
+        private Bitmap CaptureWindow(IntPtr hwnd)
+        {
+            GetWindowRect(hwnd, out RECT rect);
+            int width = rect.Right - rect.Left;
+            int height = rect.Bottom - rect.Top;
 
+            Bitmap bitmap = new Bitmap(width, height, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+            using (Graphics graphics = Graphics.FromImage(bitmap))
+            {
+                graphics.CopyFromScreen(rect.Left, rect.Top, 0, 0, new System.Drawing.Size(width, height), CopyPixelOperation.SourceCopy);
+            }
 
-        private void Button_Click(object sender, RoutedEventArgs e)
+            return bitmap;
+        }
+
+        private BitmapSource BitmapToImageSource(Bitmap bitmap)
+        {
+            IntPtr hBitmap = bitmap.GetHbitmap();
+            BitmapSource bitmapSource = Imaging.CreateBitmapSourceFromHBitmap(
+                hBitmap,
+                IntPtr.Zero,
+                Int32Rect.Empty,
+                BitmapSizeOptions.FromEmptyOptions());
+
+            // Release the HBitmap to avoid memory leaks
+            DeleteObject(hBitmap);
+
+            return bitmapSource;
+        }
+
+        [DllImport("gdi32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool DeleteObject(IntPtr hObject);
+
+        private void UpdateScreenshot()
         {
             // Get the handle of the window to capture (e.g., the currently active window)
-            //IntPtr hwnd = GetForegroundWindow();
-            var hwnd = selectedWindowHandle;
+            IntPtr hwnd = selectedWindowHandle;
+            // IntPtr hwnd = selectedWindowHandle; // Use this if you have a specific window handle
 
             // Capture the screenshot
             Bitmap screenshot = CaptureWindow(hwnd);
 
-            // Save the screenshot to a file
-            string directoryPath = @"D:\Work\IA-Mbot\screenshots";
-            string fileName = "screenshot.png";
-            string filePath = System.IO.Path.Combine(directoryPath, fileName);
-
-            // Ensure the directory exists
-            Directory.CreateDirectory(directoryPath);
-
             try
             {
-                screenshot.Save(filePath, ImageFormat.Png);
-                Console.WriteLine($"Screenshot saved to {filePath}");
+                imageScreenshot.Source = BitmapToImageSource(screenshot);
             }
             catch (ExternalException ex)
             {
-                Console.WriteLine($"An error occurred while saving the screenshot: {ex.Message}");
+                Console.WriteLine($"An error occurred while displaying the screenshot: {ex.Message}");
             }
             finally
             {
-                // Optional: Dispose of the bitmap to free resources
+                // Dispose of the bitmap to free resources
                 screenshot.Dispose();
-            }
-
-
-            List<WindowInfo> windows = GetOpenWindows();
-
-            foreach (var window in windows)
-            {
-                Console.WriteLine($"Title: {window.Title}");
             }
         }
 
-        static Bitmap CaptureWindow(IntPtr hwnd)
+        private void StartStopButton_Click(object sender, RoutedEventArgs e)
         {
-            // Get the window rectangle
-            GetWindowRect(hwnd, out RECT rect);
-
-            // Calculate the width and height
-            int width = rect.Right - rect.Left;
-            int height = rect.Bottom - rect.Top;
-
-            // Create a bitmap to hold the screenshot
-            Bitmap bmp = new Bitmap(width, height);
-
-            // Get the device context (DC) of the window
-            IntPtr hdcWindow = GetWindowDC(hwnd);
-            using (Graphics g = Graphics.FromImage(bmp))
+            // Toggle the timer on and off and call UpdateScreenshot
+            if (isTimerRunning)
             {
-                IntPtr hdcMemDC = g.GetHdc();
-
-                // BitBlt the window DC to the bitmap's DC
-                BitBlt(hdcMemDC, 0, 0, width, height, hdcWindow, 0, 0, SRCCOPY);
-
-                // Release the device contexts
-                g.ReleaseHdc(hdcMemDC);
+                timer.Stop();
+                StartStopButton.Content = "Start Timer";
+            }
+            else
+            {
+                timer.Start();
+                StartStopButton.Content = "Stop Timer";
             }
 
-            ReleaseDC(hwnd, hdcWindow);
-
-            return bmp;
+            isTimerRunning = !isTimerRunning;
         }
 
         private void ComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             selectedWindowHandle = windowHandles[comboBoxWindows.SelectedItem.ToString()];
         }
+
+
+        // Add your timer setup and tick event here
     }
 }

@@ -7,8 +7,9 @@
         mc:Ignorable="d"
         Title="MainWindow" Height="450" Width="800">
     <Grid>
-        <Button Content="Button" HorizontalAlignment="Left" Margin="10,10,0,0" VerticalAlignment="Top" Click="Button_Click"/>
+        <Button Name="StartStopButton" Content="Button" HorizontalAlignment="Left" Margin="10,10,0,0" VerticalAlignment="Top" Click="StartStopButton_Click"/>
         <ComboBox Name="comboBoxWindows" HorizontalAlignment="Center" Margin="0,8,0,0" VerticalAlignment="Top" Width="656" SelectionChanged="ComboBox_SelectionChanged"/>
+        <Image Name="imageScreenshot" HorizontalAlignment="Left" Height="355" Margin="10,62,0,0" VerticalAlignment="Top" Width="785"/>
 
     </Grid>
 </Window>
